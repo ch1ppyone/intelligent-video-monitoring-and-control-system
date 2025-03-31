@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>WMS Vision</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Socket.IO (без integrity) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Дополнительные стили для улучшенного оформления */
+    #videoContainer {
+      text-align: center;
+    }
+    #logSection, #chartSection {
+      margin-top: 20px;
+    }
+    .filter-group {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-3">
+    <h1 class="mb-4">WMS Vision</h1>
+
+    <!-- Форма смены источника -->
+    <form id="videoSourceForm" method="post" class="row g-3">
+      <div class="col-auto">
+        <label for="video_source" class="col-form-label">Выберите видео:</label>
+      </div>
+      <div class="col-auto">
+        <select name="video_source" id="video_source" class="form-select">
+          {% for video in test_videos %}
+          <option value="{{ video }}" {% if video == current_source %}selected{% endif %}>{{ video }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary mb-3">Сменить источник</button>
+      </div>
+    </form>
+
+    <!-- Уведомления -->
+    <div id="alert-area"></div>
+
+    <!-- Видео -->
+    <div id="videoContainer" class="mb-3">
+      <img id="videoFeed" class="img-fluid" src="" alt="Видео поток">
+    </div>
+
+    <!-- Лог-секция с фильтрами -->
+    <div id="logSection">
+      <h3>Лог событий</h3>
+      <div class="filter-group row">
+        <div class="col-md-6">
+          <input type="text" id="filterTime" class="form-control" placeholder="Фильтр по времени (YYYY-MM-DD HH:MM:SS)">
+        </div>
+        <div class="col-md-6">
+          <input type="text" id="filterTrack" class="form-control" placeholder="Фильтр по ID объекта">
+        </div>
+      </div>
+      <table class="table table-striped" id="logTable">
+        <thead>
+          <tr>
+            <th>Время</th>
+            <th>ID объекта</th>
+            <th>Сообщение</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Логи будут динамически заполняться -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Секция графиков -->
+    <div id="chartSection">
+      <h3>График состояний объекта</h3>
+      <div class="mb-3">
+        <label for="chartTrackFilter" class="form-label">Выберите ID объекта:</label>
+        <select id="chartTrackFilter" class="form-select">
+          <!-- Опции будут заполнены автоматически -->
+        </select>
+      </div>
+      <canvas id="chartCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS (с Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    $(document).ready(function(){
+      const socket = io();
+      let chart; // Глобальная переменная для графика
+
+      // Инициализация графика Chart.js
+      function initChart(labels = [], data = []) {
+        const ctx = document.getElementById('chartCanvas').getContext('2d');
+        if(chart) chart.destroy();
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Количество состояний',
+              data: data,
+              backgroundColor: 'rgba(54, 162, 235, 0.6)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+
+      // Функция обновления таблицы логов с фильтрами
+      function updateLogTable(logs) {
+        const filterTime = $('#filterTime').val().trim();
+        const filterTrack = $('#filterTrack').val().trim();
+        const tbody = $("#logTable tbody");
+        tbody.empty();
+        logs.forEach(function(item) {
+          const track_id = item[0];
+          const message = item[1];
+          // Фильтрация по ID и времени
+          if(filterTrack && !String(track_id).includes(filterTrack)) return;
+          if(filterTime && !message.includes(filterTime)) return;
+          // Предполагаем, что сообщение начинается с времени в формате YYYY-MM-DD HH:MM:SS
+          const timePart = message.split(" - ")[0];
+          const row = `<tr>
+                        <td>${timePart}</td>
+                        <td>${track_id}</td>
+                        <td>${message}</td>
+                      </tr>`;
+          tbody.append(row);
+        });
+      }
+
+      // Обновление графика для выбранного объекта
+      function updateChart(stateCounts, trackId) {
+        let labels = [];
+        let data = [];
+        if(stateCounts[trackId]) {
+          for(let state in stateCounts[trackId]) {
+            labels.push(state);
+            data.push(stateCounts[trackId][state]);
+          }
+        }
+        initChart(labels, data);
+      }
+
+      // При получении видеокадров
+      socket.on('video_frame', function(msg) {
+        $('#videoFeed').attr('src', 'data:image/jpeg;base64,' + msg.data);
+      });
+
+      // При получении логов
+      socket.on('log_update', function(data) {
+        // data.logs – массив логов, каждый элемент: [track_id, message]
+        updateLogTable(data.logs);
+      });
+
+      // При получении данных для графика
+      socket.on('chart_update', function(data) {
+        const stateCounts = data.state_counts;
+        // Заполняем dropdown для графика
+        const dropdown = $('#chartTrackFilter');
+        dropdown.empty();
+        for(let track in stateCounts) {
+          dropdown.append(`<option value="${track}">${track}</option>`);
+        }
+        // Обновляем график для выбранного объекта
+        const selectedTrack = dropdown.val();
+        updateChart(stateCounts, selectedTrack);
+      });
+
+      // Обработка изменения фильтров для логов
+      $('#filterTime, #filterTrack').on('input', function(){
+        // При каждом вводе пересчитываем таблицу логов (используем последний полученный набор логов)
+        socket.emit('request_logs'); // (если нужно, можно добавить запрос на сервер)
+      });
+
+      // Обработка смены выбранного объекта для графика
+      $('#chartTrackFilter').on('change', function(){
+        // При выборе нового объекта, запросим обновление графика из последнего state_counts
+        socket.emit('request_chart'); // (опционально, если хотим инициировать запрос)
+      });
+
+      // AJAX-отправка формы смены источника без перезагрузки
+      $("#videoSourceForm").on("submit", function(e) {
+        e.preventDefault();
+        let formData = $(this).serialize();
+        $.ajax({
+          type: "POST",
+          url: "/set_video_source",
+          data: formData,
+          success: function(response) {
+            let alertHtml = `<div class="alert alert-success alert-dismissible fade show" role="alert">
+                                Источник видео изменён!
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                              </div>`;
+            $("#alert-area").html(alertHtml);
+          },
+          error: function() {
+            let alertHtml = `<div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                Ошибка смены источника!
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                              </div>`;
+            $("#alert-area").html(alertHtml);
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
