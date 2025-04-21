@@ -2,33 +2,27 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>WMS Vision</title>
-  <!-- Bootstrap CSS -->
+  <title>Интеллектуальная система видеомониторинга и контроля производственных процессов</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <!-- Socket.IO (без integrity) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* Дополнительные стили для улучшенного оформления */
-    #videoContainer {
-      text-align: center;
-    }
-    #logSection, #chartSection {
-      margin-top: 20px;
-    }
-    .filter-group {
-      margin-bottom: 10px;
-    }
+    #videoContainer { text-align: center; }
+    #logSection, #chartSection { margin-top: 20px; }
+    .filter-group { margin-bottom: 10px; }
+    #trainingLog { height: 300px; overflow-y: auto; }
+    #uploadProgress { display: none; }
+    #previewModal video { max-width: 100%; height: auto; }
   </style>
 </head>
 <body>
   <div class="container mt-3">
-    <h1 class="mb-4">WMS Vision</h1>
-
-    <!-- Форма смены источника -->
+    <h1 class="mb-4">Интеллектуальная система видеомониторинга и контроля производственных процессов</h1>
+    <div class="mb-3">
+      <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#stateModal">Управление состояниями</button>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#trainModal">Обучение</button>
+    </div>
     <form id="videoSourceForm" method="post" class="row g-3">
       <div class="col-auto">
         <label for="video_source" class="col-form-label">Выберите видео:</label>
@@ -44,16 +38,10 @@
         <button type="submit" class="btn btn-primary mb-3">Сменить источник</button>
       </div>
     </form>
-
-    <!-- Уведомления -->
     <div id="alert-area"></div>
-
-    <!-- Видео -->
     <div id="videoContainer" class="mb-3">
       <img id="videoFeed" class="img-fluid" src="" alt="Видео поток">
     </div>
-
-    <!-- Лог-секция с фильтрами -->
     <div id="logSection">
       <h3>Лог событий</h3>
       <div class="filter-group row">
@@ -72,34 +60,129 @@
             <th>Сообщение</th>
           </tr>
         </thead>
-        <tbody>
-          <!-- Логи будут динамически заполняться -->
-        </tbody>
+        <tbody></tbody>
       </table>
     </div>
-
-    <!-- Секция графиков -->
     <div id="chartSection">
       <h3>График состояний объекта</h3>
       <div class="mb-3">
         <label for="chartTrackFilter" class="form-label">Выберите ID объекта:</label>
-        <select id="chartTrackFilter" class="form-select">
-          <!-- Опции будут заполнены автоматически -->
-        </select>
+        <select id="chartTrackFilter" class="form-select"></select>
       </div>
       <canvas id="chartCanvas"></canvas>
     </div>
   </div>
 
-  <!-- Bootstrap JS (с Popper) -->
+  <!-- Модальное окно для управления состояниями -->
+  <div class="modal fade" id="stateModal" tabindex="-1" aria-labelledby="stateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="stateModalLabel">Управление состояниями</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="stateModalBody">
+          <button class="btn btn-success mb-3" id="addStateBtn">Добавить состояние</button>
+          <table class="table table-striped" id="stateTable">
+            <thead>
+              <tr>
+                <th>Код</th>
+                <th>Описание</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно для управления датасетом -->
+  <div class="modal fade" id="datasetModal" tabindex="-1" aria-labelledby="datasetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="datasetModalLabel">Управление датасетом</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="uploadVideoForm" enctype="multipart/form-data">
+            <div class="mb-3">
+              <label for="videoFile" class="form-label">Загрузить видео (MP4):</label>
+              <input type="file" class="form-control" id="videoFile" name="video" accept=".mp4">
+            </div>
+            <button type="submit" class="btn btn-primary">Загрузить</button>
+            <div class="progress mt-2" id="uploadProgress">
+              <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </form>
+          <table class="table table-striped mt-3" id="videoTable">
+            <thead>
+              <tr>
+                <th>Имя файла</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно для предпросмотра видео -->
+  <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="previewModalLabel">Предпросмотр видео</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <video controls id="previewVideo"></video>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модальное окно для обучения -->
+  <div class="modal fade" id="trainModal" tabindex="-1" aria-labelledby="trainModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="trainModalLabel">Обучение модели</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="trainingLog" class="border p-3 bg-light"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="startTrainingBtn">Начать обучение</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
     $(document).ready(function(){
       const socket = io();
-      let chart; // Глобальная переменная для графика
+      let chart;
+      let currentStateCode = null;
+      let cachedStates = null; // Кэширование состояний
 
-      // Инициализация графика Chart.js
       function initChart(labels = [], data = []) {
         const ctx = document.getElementById('chartCanvas').getContext('2d');
         if(chart) chart.destroy();
@@ -116,14 +199,11 @@
             }]
           },
           options: {
-            scales: {
-              y: { beginAtZero: true }
-            }
+            scales: { y: { beginAtZero: true } }
           }
         });
       }
 
-      // Функция обновления таблицы логов с фильтрами
       function updateLogTable(logs) {
         const filterTime = $('#filterTime').val().trim();
         const filterTrack = $('#filterTrack').val().trim();
@@ -132,10 +212,8 @@
         logs.forEach(function(item) {
           const track_id = item[0];
           const message = item[1];
-          // Фильтрация по ID и времени
           if(filterTrack && !String(track_id).includes(filterTrack)) return;
           if(filterTime && !message.includes(filterTime)) return;
-          // Предполагаем, что сообщение начинается с времени в формате YYYY-MM-DD HH:MM:SS
           const timePart = message.split(" - ")[0];
           const row = `<tr>
                         <td>${timePart}</td>
@@ -146,7 +224,6 @@
         });
       }
 
-      // Обновление графика для выбранного объекта
       function updateChart(stateCounts, trackId) {
         let labels = [];
         let data = [];
@@ -159,44 +236,136 @@
         initChart(labels, data);
       }
 
-      // При получении видеокадров
+      function loadStates(forceReload = false) {
+        if (cachedStates && !forceReload) {
+          renderStates(cachedStates);
+          return;
+        }
+        $.ajax({
+          url: '/get_states',
+          method: 'GET',
+          success: function(data) {
+            cachedStates = data.states;
+            renderStates(cachedStates);
+          },
+          error: function() {
+            showAlert('danger', 'Ошибка загрузки состояний');
+          }
+        });
+      }
+
+      function renderStates(states) {
+        const tbody = $('#stateTable tbody');
+        tbody.empty();
+        states.forEach(function(state) {
+          const isActive = state.code === currentStateCode ? 'table-active' : '';
+          const row = `<tr class="${isActive}">
+                        <td>${state.code}</td>
+                        <td>${state.description}</td>
+                        <td>
+                          <button class="btn btn-sm btn-primary manage-dataset me-1" data-code="${state.code}">Управление датасетом</button>
+                          <button class="btn btn-sm btn-warning edit-state me-1" data-code="${state.code}" data-description="${state.description}">Редактировать</button>
+                          <button class="btn btn-sm btn-danger delete-state" data-code="${state.code}">Удалить</button>
+                        </td>
+                      </tr>`;
+          tbody.append(row);
+        });
+        $('#stateModalBody').html(`
+          <button class="btn btn-success mb-3" id="addStateBtn">Добавить состояние</button>
+          <table class="table table-striped" id="stateTable">
+            <thead>
+              <tr>
+                <th>Код</th>
+                <th>Описание</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>${tbody.html()}</tbody>
+          </table>
+        `);
+      }
+
+      function loadVideos(stateCode) {
+        currentStateCode = stateCode;
+        $.ajax({
+          url: `/get_videos/${stateCode}`,
+          method: 'GET',
+          success: function(data) {
+            const tbody = $('#videoTable tbody');
+            tbody.empty();
+            data.videos.forEach(function(video) {
+              const row = `<tr>
+                            <td>${video}</td>
+                            <td>
+                              <button class="btn btn-sm btn-info preview-video me-1" data-filename="${video}">Просмотр</button>
+                              <button class="btn btn-sm btn-danger delete-video" data-filename="${video}">Удалить</button>
+                            </td>
+                          </tr>`;
+              tbody.append(row);
+            });
+            $('#datasetModalLabel').text(`Управление датасетом: ${stateCode}`);
+          },
+          error: function() {
+            showAlert('danger', 'Ошибка загрузки видео');
+          }
+        });
+      }
+
+      function showAlert(type, message) {
+        const alertHtml = `<div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                            ${message}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                          </div>`;
+        $("#alert-area").html(alertHtml);
+      }
+
       socket.on('video_frame', function(msg) {
         $('#videoFeed').attr('src', 'data:image/jpeg;base64,' + msg.data);
       });
 
-      // При получении логов
       socket.on('log_update', function(data) {
-        // data.logs – массив логов, каждый элемент: [track_id, message]
         updateLogTable(data.logs);
       });
 
-      // При получении данных для графика
       socket.on('chart_update', function(data) {
         const stateCounts = data.state_counts;
-        // Заполняем dropdown для графика
         const dropdown = $('#chartTrackFilter');
         dropdown.empty();
         for(let track in stateCounts) {
           dropdown.append(`<option value="${track}">${track}</option>`);
         }
-        // Обновляем график для выбранного объекта
         const selectedTrack = dropdown.val();
-        updateChart(stateCounts, selectedTrack);
+        if(selectedTrack) {
+          updateChart(stateCounts, selectedTrack);
+        }
       });
 
-      // Обработка изменения фильтров для логов
+      socket.on('training_log', function(data) {
+        const logDiv = $('#trainingLog');
+        logDiv.append(`<p>${data.log}</p>`);
+        logDiv.scrollTop(logDiv[0].scrollHeight);
+      });
+
+      socket.on('training_warning', function(data) {
+        showAlert('warning', data.message);
+        $('#trainModal').modal('hide');
+      });
+
+      socket.on('training_complete', function(data) {
+        showAlert(data.message.includes('успешно') ? 'success' : 'danger', data.message);
+        $('#trainModal').modal('hide');
+        $('#trainingLog').empty();
+      });
+
       $('#filterTime, #filterTrack').on('input', function(){
-        // При каждом вводе пересчитываем таблицу логов (используем последний полученный набор логов)
-        socket.emit('request_logs'); // (если нужно, можно добавить запрос на сервер)
+        updateLogTable(video_processor.log_messages || []);
       });
 
-      // Обработка смены выбранного объекта для графика
       $('#chartTrackFilter').on('change', function(){
-        // При выборе нового объекта, запросим обновление графика из последнего state_counts
-        socket.emit('request_chart'); // (опционально, если хотим инициировать запрос)
+        const selectedTrack = $(this).val();
+        updateChart(video_processor.state_counts || {}, selectedTrack);
       });
 
-      // AJAX-отправка формы смены источника без перезагрузки
       $("#videoSourceForm").on("submit", function(e) {
         e.preventDefault();
         let formData = $(this).serialize();
@@ -205,18 +374,203 @@
           url: "/set_video_source",
           data: formData,
           success: function(response) {
-            let alertHtml = `<div class="alert alert-success alert-dismissible fade show" role="alert">
-                                Источник видео изменён!
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                              </div>`;
-            $("#alert-area").html(alertHtml);
+            showAlert('success', response.message);
           },
-          error: function() {
-            let alertHtml = `<div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                Ошибка смены источника!
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                              </div>`;
-            $("#alert-area").html(alertHtml);
+          error: function(xhr) {
+            showAlert('danger', xhr.responseJSON.error);
+          }
+        });
+      });
+
+      $('#stateModal').on('show.bs.modal', function() {
+        loadStates();
+      });
+
+      $('#stateModal').on('hidden.bs.modal', function() {
+        loadStates();
+      });
+
+      $('#datasetModal').on('hidden.bs.modal', function() {
+        // Удаляем вызов checkAndOpenStateModal
+      });
+
+      $('#trainModal').on('hidden.bs.modal', function() {
+        // Удаляем вызов checkAndOpenStateModal
+      });
+
+      $(document).on('click', '#addStateBtn', function() {
+        const modalBody = $('#stateModalBody');
+        modalBody.html(`
+          <form id="stateForm">
+            <div class="mb-3">
+              <label for="stateCode" class="form-label">Код состояния</label>
+              <input type="text" class="form-control" id="stateCode" required>
+            </div>
+            <div class="mb-3">
+              <label for="stateDescription" class="form-label">Описание</label>
+              <input type="text" class="form-control" id="stateDescription" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <button type="button" class="btn btn-secondary" id="cancelStateForm">Отмена</button>
+          </form>
+        `);
+      });
+
+      $(document).on('click', '#cancelStateForm', function() {
+        loadStates();
+      });
+
+      $(document).on('submit', '#stateForm', function(e) {
+        e.preventDefault();
+        const code = $('#stateCode').val().trim();
+        const description = $('#stateDescription').val().trim();
+        const oldCode = $('#oldStateCode').val();
+        const url = oldCode ? '/update_state' : '/add_state';
+        const data = oldCode ? { old_code: oldCode, new_code: code, description } : { code, description };
+        $.ajax({
+          url: url,
+          method: 'POST',
+          contentType: 'application/json',
+          data: JSON.stringify(data),
+          success: function(response) {
+            showAlert('success', response.message);
+            loadStates(true); // Обновляем кэш
+          },
+          error: function(xhr) {
+            showAlert('danger', xhr.responseJSON.error);
+          }
+        });
+      });
+
+      $(document).on('click', '.edit-state', function() {
+        const code = $(this).data('code');
+        const description = $(this).data('description');
+        const modalBody = $('#stateModalBody');
+        modalBody.html(`
+          <form id="stateForm">
+            <div class="mb-3">
+              <label for="stateCode" class="form-label">Код состояния</label>
+              <input type="text" class="form-control" id="stateCode" value="${code}" required>
+            </div>
+            <div class="mb-3">
+              <label for="stateDescription" class="form-label">Описание</label>
+              <input type="text" class="form-control" id="stateDescription" value="${description}" required>
+            </div>
+            <input type="hidden" id="oldStateCode" value="${code}">
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <button type="button" class="btn btn-secondary" id="cancelStateForm">Отмена</button>
+          </form>
+        `);
+      });
+
+      $(document).on('click', '.delete-state', function() {
+        const code = $(this).data('code');
+        if(confirm(`Удалить состояние ${code}?`)) {
+          $.ajax({
+            url: '/delete_state',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ code }),
+            success: function(response) {
+              showAlert('success', response.message);
+              loadStates(true); // Обновляем кэш
+            },
+            error: function(xhr) {
+              showAlert('danger', xhr.responseJSON.error);
+            }
+          });
+        }
+      });
+
+      $(document).on('click', '.manage-dataset', function() {
+        const stateCode = $(this).data('code');
+        loadVideos(stateCode);
+        $('#datasetModal').modal('show');
+      });
+
+      $('#datasetModal').on('show.bs.modal', function() {
+        if (currentStateCode) {
+          loadVideos(currentStateCode);
+        }
+      });
+
+      $(document).on('click', '.preview-video', function() {
+        const filename = $(this).data('filename');
+        const videoUrl = `/train/${currentStateCode}/${filename}`;
+        $('#previewVideo').attr('src', videoUrl);
+        $('#previewModal').modal('show');
+      });
+
+      $('#uploadVideoForm').on('submit', function(e) {
+        e.preventDefault();
+        const fileInput = $('#videoFile')[0];
+        if (!fileInput.files.length) {
+          showAlert('danger', 'Выберите видео для загрузки');
+          return;
+        }
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('video', file);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `/upload_video/${currentStateCode}`, true);
+
+        xhr.upload.onprogress = function(e) {
+          if (e.lengthComputable) {
+            const percent = (e.loaded / e.total) * 100;
+            $('#uploadProgress').show();
+            $('#uploadProgress .progress-bar').css('width', percent + '%').attr('aria-valuenow', percent);
+          }
+        };
+
+        xhr.onload = function() {
+          $('#uploadProgress').hide();
+          if (xhr.status === 200) {
+            showAlert('success', JSON.parse(xhr.responseText).message);
+            loadVideos(currentStateCode);
+            $('#uploadVideoForm')[0].reset();
+          } else {
+            showAlert('danger', JSON.parse(xhr.responseText).error);
+          }
+        };
+
+        xhr.onerror = function() {
+          $('#uploadProgress').hide();
+          showAlert('danger', 'Ошибка при загрузке видео');
+        };
+
+        xhr.send(formData);
+      });
+
+      $(document).on('click', '.delete-video', function() {
+        const filename = $(this).data('filename');
+        if(confirm(`Удалить видео ${filename}?`)) {
+          $.ajax({
+            url: `/delete_video/${currentStateCode}`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ filename }),
+            success: function(response) {
+              showAlert('success', response.message);
+              loadVideos(currentStateCode);
+            },
+            error: function(xhr) {
+              showAlert('danger', xhr.responseJSON.error);
+            }
+          });
+        }
+      });
+
+      $('#startTrainingBtn').on('click', function() {
+        $('#trainingLog').empty();
+        $.ajax({
+          url: '/train_model',
+          method: 'POST',
+          success: function(response) {
+            showAlert('success', response.message);
+          },
+          error: function(xhr) {
+            showAlert('danger', xhr.responseJSON.error);
           }
         });
       });

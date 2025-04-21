@@ -5,6 +5,8 @@ import random
 import numpy as np
 import tensorflow as tf
 import ssl
+import sqlite3
+
 ssl._create_default_https_context = ssl._create_unverified_context
 
 from tensorflow.keras.utils import Sequence, to_categorical
@@ -42,12 +44,17 @@ class VideoDataGenerator(Sequence):
         self.num_keypoints = 33 * 3
 
     def _scan_directory(self):
-        classes = sorted([d for d in os.listdir(self.directory)
-                          if os.path.isdir(os.path.join(self.directory, d))])
+        # Получаем классы из базы данных
+        with sqlite3.connect("states.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT code FROM states")
+            classes = [row[0] for row in cursor.fetchall()]
         self.class_indices = {cls_name: idx for idx, cls_name in enumerate(classes)}
         all_samples = []
         for cls_name in classes:
             cls_dir = os.path.join(self.directory, cls_name)
+            if not os.path.exists(cls_dir):
+                continue
             for fname in os.listdir(cls_dir):
                 if fname.lower().endswith('.mp4'):
                     video_path = os.path.join(cls_dir, fname)

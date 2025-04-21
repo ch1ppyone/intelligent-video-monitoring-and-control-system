@@ -10,3 +10,4 @@ numpy
 opencv-python
 openpyxl
 protobuf
+scikit-learn
